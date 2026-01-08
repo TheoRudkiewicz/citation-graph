@@ -23,18 +23,69 @@ except ImportError:
     exit(1)
 
 
+def normalize_title(title: str) -> str:
+    """Normalize a paper title for matching.
+
+    Handles differences in capitalization, whitespace, and common punctuation.
+    """
+    if not title:
+        return ""
+    # Lowercase
+    normalized = title.lower()
+    # Remove extra whitespace
+    normalized = " ".join(normalized.split())
+    # Remove common punctuation that might differ between versions
+    for char in [":", "-", "–", "—", "'", "'", '"', '"', '"']:
+        normalized = normalized.replace(char, " ")
+    # Collapse multiple spaces again
+    normalized = " ".join(normalized.split())
+    return normalized.strip()[:150]  # Limit length for key
+
+
+def extract_arxiv_id_from_doi(doi: str) -> str | None:
+    """Extract arXiv ID from an arXiv DOI."""
+    if not doi:
+        return None
+    doi_lower = doi.lower()
+    import re
+
+    match = re.search(r"10\.48550/arxiv\.(\d+\.\d+)", doi_lower)
+    if match:
+        return match.group(1)
+    return None
+
+
 def get_paper_key(paper: dict) -> str:
-    """Generate a unique key for a paper for deduplication."""
-    if paper.get("doi"):
-        return f"doi:{paper['doi'].lower()}"
-    if paper.get("arxiv_id"):
-        return f"arxiv:{paper['arxiv_id'].lower()}"
+    """Generate a unique key for a paper for deduplication.
+
+    Uses normalized title as the primary key to merge papers that have
+    different DOIs (e.g., arXiv preprint vs published version).
+    """
+    title = paper.get("title", "")
+
+    # Use normalized title as primary key if available
+    if title:
+        normalized = normalize_title(title)
+        if normalized:
+            return f"title:{normalized}"
+
+    # Fallback to DOI/arXiv ID if no title
+    doi = paper.get("doi", "")
+    arxiv_id = paper.get("arxiv_id", "")
+
+    # Check if DOI is an arXiv DOI
+    arxiv_from_doi = extract_arxiv_id_from_doi(doi)
+    if arxiv_from_doi:
+        return f"arxiv:{arxiv_from_doi}"
+
+    if arxiv_id:
+        return f"arxiv:{arxiv_id.lower()}"
+    if doi:
+        return f"doi:{doi.lower()}"
     if paper.get("openalex_id"):
         return f"openalex:{paper['openalex_id'].lower()}"
     if paper.get("s2_id"):
         return f"s2:{paper['s2_id'].lower()}"
-    if paper.get("title"):
-        return f"title:{paper['title'].lower()[:100]}"
     return None
 
 

@@ -444,12 +444,17 @@ def main():
         time.sleep(REQUEST_DELAY)
 
     # Write output
+    seed_titles = [
+        r["metadata"].get("title", "Unknown") if r.get("metadata") else "Unknown"
+        for r in results
+    ]
     output_data = {
         "query_info": {
             "input_file": args.input,
             "num_dois": len(dois),
             "max_citing_per_paper": args.max_citing,
             "sources": ["openalex", "semantic_scholar"],
+            "seed_paper_titles": seed_titles,
         },
         "papers": results,
     }

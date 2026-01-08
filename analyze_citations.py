@@ -30,16 +30,45 @@ def extract_arxiv_id_from_doi(doi: str) -> str | None:
     return None
 
 
+def normalize_title(title: str) -> str:
+    """Normalize a paper title for matching.
+
+    Handles differences in capitalization, whitespace, and common punctuation.
+    """
+    if not title:
+        return ""
+    # Lowercase
+    normalized = title.lower()
+    # Remove extra whitespace
+    normalized = " ".join(normalized.split())
+    # Remove common punctuation that might differ between versions
+    for char in [":", "-", "–", "—", "'", "'", '"', '"', '"']:
+        normalized = normalized.replace(char, " ")
+    # Collapse multiple spaces again
+    normalized = " ".join(normalized.split())
+    return normalized.strip()[:150]  # Limit length for key
+
+
 def get_paper_key(paper: dict) -> str:
     """Generate a unique key for a paper for deduplication.
 
-    Normalizes arXiv papers to use arxiv: prefix regardless of whether
-    they were identified by DOI or arXiv ID.
+    Uses normalized title as the primary key to merge papers that have
+    different DOIs (e.g., arXiv preprint vs published version).
+    Falls back to DOI/arXiv ID if title is not available.
     """
+    title = paper.get("title", "")
+
+    # Use normalized title as primary key if available
+    if title:
+        normalized = normalize_title(title)
+        if normalized:
+            return f"title:{normalized}"
+
+    # Fallback to DOI/arXiv ID if no title
     doi = paper.get("doi", "")
     arxiv_id = paper.get("arxiv_id", "")
 
-    # First, check if DOI is an arXiv DOI and extract the arXiv ID
+    # Check if DOI is an arXiv DOI and extract the arXiv ID
     arxiv_from_doi = extract_arxiv_id_from_doi(doi)
     if arxiv_from_doi:
         return f"arxiv:{arxiv_from_doi}"
@@ -56,8 +85,6 @@ def get_paper_key(paper: dict) -> str:
         return f"openalex:{paper['openalex_id'].lower()}"
     if paper.get("s2_id"):
         return f"s2:{paper['s2_id'].lower()}"
-    if paper.get("title"):
-        return f"title:{paper['title'].lower()[:100]}"
     return None
 
 
